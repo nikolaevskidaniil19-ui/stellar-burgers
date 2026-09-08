@@ -11,6 +11,7 @@ import {
 import { TUser } from '../utils/types';
 import { deleteCookie, setCookie } from '../utils/cookie';
 
+// Регистрация
 export const registerUser = createAsyncThunk(
   'user/register',
   async (data: TRegisterData) => {
@@ -21,6 +22,7 @@ export const registerUser = createAsyncThunk(
   }
 );
 
+// Авторизация (Логин)
 export const loginUser = createAsyncThunk(
   'user/login',
   async (data: TLoginData) => {
@@ -31,17 +33,20 @@ export const loginUser = createAsyncThunk(
   }
 );
 
+// Выход из системы
 export const logoutUser = createAsyncThunk('user/logout', async () => {
   await logoutApi();
   localStorage.removeItem('refreshToken');
   deleteCookie('accessToken');
 });
 
+// Проверка профиля при старте
 export const checkUserAuth = createAsyncThunk('user/checkAuth', async () => {
   const res = await getUserApi();
   return res.user;
 });
 
+// Обновление профиля — используем напрямую корректный метод updateUserApi
 export const updateUserProfile = createAsyncThunk(
   'user/updateProfile',
   async (data: Partial<TRegisterData>) => {
@@ -74,7 +79,6 @@ export const userSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-
       .addCase(checkUserAuth.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -88,32 +92,26 @@ export const userSlice = createSlice({
         state.user = null;
         state.isAuthChecked = true;
         state.isLoading = false;
-        state.error = action.error.message || null;
-      })
-
-      .addCase(loginUser.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthChecked = true;
-        state.isLoading = false;
+        state.error = null;
       })
       .addCase(loginUser.rejected, (state, action) => {
-        state.isLoading = false;
         state.error = action.error.message || 'Ошибка авторизации';
       })
-
       .addCase(registerUser.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthChecked = true;
+        state.error = null;
       })
-
+      .addCase(registerUser.rejected, (state, action) => {
+        state.error = action.error.message || 'Ошибка регистрации';
+      })
       .addCase(logoutUser.fulfilled, (state) => {
         state.user = null;
       })
-
       .addCase(updateUserProfile.fulfilled, (state, action) => {
         state.user = action.payload;
       });

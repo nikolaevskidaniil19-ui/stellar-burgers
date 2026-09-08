@@ -5,7 +5,6 @@ import { selectUserState, updateUserProfile } from '../../services/userSlice';
 
 export const Profile: FC = () => {
   const dispatch = useDispatch();
-
   const { user } = useSelector(selectUserState);
 
   const [formValue, setFormValue] = useState({
@@ -31,13 +30,13 @@ export const Profile: FC = () => {
     e.preventDefault();
     if (!isFormChanged) return;
 
-    const updatedData: { name?: string; email?: string; password?: string } =
-      {};
-    if (formValue.name !== user?.name) updatedData.name = formValue.name;
-    if (formValue.email !== user?.email) updatedData.email = formValue.email;
-    if (formValue.password) updatedData.password = formValue.password;
-
-    dispatch(updateUserProfile(updatedData))
+    dispatch(
+      updateUserProfile({
+        name: formValue.name,
+        email: formValue.email,
+        ...(formValue.password ? { password: formValue.password } : {})
+      })
+    )
       .unwrap()
       .then(() => {
         setFormValue((prevState) => ({ ...prevState, password: '' }));
