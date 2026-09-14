@@ -6,7 +6,7 @@ import { fetchOrderByNumber } from '../../services/feedsSlice';
 
 import { Preloader } from '../ui/preloader';
 import { OrderInfoUI } from '../ui/order-info';
-import { TIngredient, TOrder } from '@utils-types';
+import { TIngredient } from '@utils-types';
 
 export const OrderInfo: FC = () => {
   const dispatch = useDispatch();
@@ -15,12 +15,9 @@ export const OrderInfo: FC = () => {
   const orderNumber = Number(number);
 
   const { ingredients } = useSelector(selectIngredientsState);
-
   const { orders, orderByNumber } = useSelector((state) => state.feeds);
 
-  const profileOrders: TOrder[] = useSelector(
-    (state) => (state as any).profileOrders?.orders || []
-  );
+  const profileOrders = useSelector((state) => state.profileOrders.orders);
 
   const orderData = useMemo(() => {
     const foundInFeeds = orders.find((item) => item.number === orderNumber);

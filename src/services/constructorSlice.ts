@@ -23,21 +23,25 @@ export const constructorSlice = createSlice({
           state.ingredients.push(action.payload);
         }
       },
-
       prepare: (ingredient: TIngredient) => {
-        const id = crypto.randomUUID
-          ? crypto.randomUUID()
-          : Math.random().toString(36).substring(2, 9);
+        const id = crypto.randomUUID();
         return { payload: { ...ingredient, id } };
       }
     },
-
     removeIngredient: (state, action: PayloadAction<string>) => {
       state.ingredients = state.ingredients.filter(
         (item) => item.id !== action.payload
       );
     },
-
+    moveIngredient: (
+      state,
+      action: PayloadAction<{ fromIndex: number; toIndex: number }>
+    ) => {
+      const { fromIndex, toIndex } = action.payload;
+      const movingIngredient = state.ingredients[fromIndex];
+      state.ingredients.splice(fromIndex, 1);
+      state.ingredients.splice(toIndex, 0, movingIngredient);
+    },
     clearConstructor: (state) => {
       state.bun = null;
       state.ingredients = [];
@@ -45,12 +49,17 @@ export const constructorSlice = createSlice({
   }
 });
 
-export const { addIngredient, removeIngredient, clearConstructor } =
-  constructorSlice.actions;
+export const {
+  addIngredient,
+  removeIngredient,
+  moveIngredient,
+  clearConstructor
+} = constructorSlice.actions;
 
 export const selectConstructorBun = (state: {
   constructorBurger: TConstructorState;
 }) => state.constructorBurger.bun;
+
 export const selectConstructorIngredients = (state: {
   constructorBurger: TConstructorState;
 }) => state.constructorBurger.ingredients;

@@ -1,5 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { useSelector } from '../../services/store';
+import { selectUserState } from '../../services/userSlice';
+import { Preloader } from '@ui';
 
 type ProtectedRouteProps = {
   onlyUnAuth?: boolean;
@@ -10,13 +13,11 @@ export const ProtectedRoute = ({
   onlyUnAuth = false,
   children
 }: ProtectedRouteProps) => {
-  const user = null;
-  const isAuthChecked = true;
-
+  const { user, isAuthChecked } = useSelector(selectUserState);
   const location = useLocation();
 
   if (!isAuthChecked) {
-    return <div>Загрузка пользователя...</div>;
+    return <Preloader />;
   }
 
   if (onlyUnAuth && user) {
