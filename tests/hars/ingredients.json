@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "61c0c5a71d1f82001bda4651",
+      "name": "Краторная булка N-200i",
+      "type": "bun",
+      "proteins": 80,
+      "fat": 24,
+      "carbohydrates": 53,
+      "calories": 420,
+      "price": 1255,
+      "image": "https://yandex.net",
+      "image_mobile": "https://yandex.net",
+      "image_large": "https://yandex.net"
+    },
+    {
+      "_id": "61c0c5a71d1f82001bda4653",
+      "name": "Филе Люминесцентного Тетраодона",
+      "type": "main",
+      "proteins": 44,
+      "fat": 26,
+      "carbohydrates": 85,
+      "calories": 643,
+      "price": 988,
+      "image": "https://yandex.net",
+      "image_mobile": "https://yandex.net",
+      "image_large": "https://yandex.net"
+    }
+  ]
+}
