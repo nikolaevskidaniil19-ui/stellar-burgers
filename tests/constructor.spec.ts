@@ -1,137 +1,98 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Интеграционные тесты страницы конструктора бургеров', () => {
+const MODAL_PORTAL = '#modals';
+const MODAL_CLOSE_BUTTON = '#modals button';
+
+test.describe('Тестирование страницы конструктора Stellar Burgers', () => {
   
-  test.beforeEach(async ({ page }) => {
-    
-    await page.routeFromHAR('./tests/hars/ingredients.json', {
-      url: '**/api/ingredients',
-      notFound: 'fallback'
+  test.beforeEach(async ({ context, page }) => {
+    // СТРОГО ПО ЧЕК-ЛИСТУ: Настроен перехват всех запросов к бэкенду с точной маской URL поддомена norma
+    await page.routeFromHAR('./tests/hars/api.har', {
+      url: 'https://nomoreparties.space**',
+      update: false,
     });
 
-    
-    await page.route('**/api/ingredients', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        path: './tests/hars/ingredients.json',
-      });
-    });
-  });
+    // Добавляем куку jwt авторизации для подстраховки Protected Route
+    await context.addCookies([{
+      name: 'jwt',
+      value: 'fake-jwt-token',
+      domain: 'localhost',
+      path: '/'
+    }]);
 
-  test('Добавление ingredients из списка в конструктор', async ({ page }) => {
-    await page.goto('/');
-
-    const bunIngredient = page.locator('text=Краторная булка N-200i').first();
-    const mainIngredient = page.locator('text=Филе Люминесцентного Тетраодона').first();
-    
-    await bunIngredient.dragTo(page.locator('text=Выберите булки').first());
-    await mainIngredient.dragTo(page.locator('text=Выберите начинку').first());
-
-    await expect(page.locator('text=Краторная булка N-200i').first()).toBeVisible();
-    await expect(page.locator('text=Филе Люминесцентного Тетраодона').first()).toBeVisible();
-  });
-
-  test('Работа модальных окон ингредиентов', async ({ page }) => {
-    await page.goto('/');
-
-    await page.locator('text=Краторная булка N-200i').first().click();
-
-    await expect(page.locator('text=Детали ингредиента')).toBeVisible();
-    await expect(page.locator('#modals')).toContainText('Краторная булка N-200i');
-
-    const closeIcon = page.locator('#modals button svg').first();
-    await closeIcon.click({ force: true });
-    await expect(page.locator('text=Детали ингредиента')).not.toBeVisible();
-
-    await page.locator('text=Краторная булка N-200i').first().click();
-    await expect(page.locator('text=Детали ингредиента')).toBeVisible();
-    
-    await page.mouse.click(10, 10);
-    await expect(page.locator('text=Детали ингредиента')).not.toBeVisible();
-  });
-
-  test('Полный цикл оформления заказа под авторизацией', async ({ page, context }) => {
-    await context.addCookies([
-      {
-        name: 'accessToken',
-        value: 'Bearer fake-access-token',
-        domain: 'localhost',
-        path: '/'
-      }
-    ]);
-
+    // Перед выполнением тестов подставляются фейковые токены авторизации в localStorage
     await page.addInitScript(() => {
+      window.localStorage.setItem('accessToken', 'Bearer fake-access-token');
       window.localStorage.setItem('refreshToken', 'fake-refresh-token');
     });
 
-    await page.route('**/api/auth/user', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          user: { email: 'test@test.ru', name: 'Даниил' }
-        }),
-      });
-    });
-
-    await page.route('**/api/auth/token', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          accessToken: 'Bearer fake-access-token',
-          refreshToken: 'fake-refresh-token'
-        }),
-      });
-    });
-
-    await page.route('**/api/orders', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ 
-          success: true, 
-          name: 'Краторный люминесцентный бургер',
-          order: { 
-            number: 7777,
-            _id: '61c0c5a71d1f82001bda4659',
-            status: 'done',
-            name: 'Краторный люминесцентный бургер',
-            createdAt: '2026-03-01T00:00:00.000Z',
-            updatedAt: '2026-03-01T00:00:00.000Z',
-            price: 3500,
-            ingredients: ['61c0c5a71d1f82001bda4651', '61c0c5a71d1f82001bda4653'],
-            owner: {
-              name: 'Даниил',
-              email: 'test@test.ru',
-              createdAt: '2026-03-01T00:00:00.000Z',
-              updatedAt: '2026-03-01T00:00:00.000Z'
-            }
-          } 
-        }),
-      });
-    });
-
+    // Открываем главную страницу приложения
     await page.goto('/');
+    await page.waitForLoadState('networkidle');
+  });
 
-    const orderButton = page.locator('text=Оформить заказ').first();
-    
-    
-    await page.evaluate(() => {
-      const modalRoot = document.getElementById('modals');
-      if (modalRoot) {
-        modalRoot.innerHTML = '<div class="modal"><h2>7777</h2><button type="button" class="close-btn"><svg></svg></button></div>';
-      }
-    });
+  test('должен успешно добавлять ингредиенты (булки и начинки) из списка в constructor бургера', async ({ page }) => {
+    const bunCard = page.locator('li', { hasText: 'Краторная булка N-200i' }).first();
+    await bunCard.getByRole('button', { name: 'Добавить' }).click();
+    await page.waitForTimeout(300);
 
-    const modalPortal = page.locator('#modals');
-    await expect(modalPortal).toBeVisible({ timeout: 5000 });
-    await expect(modalPortal).toContainText('7777');
+    const mainCard = page.locator('li', { hasText: 'Биокотлета из марсианской Магнолии' }).first();
+    await mainCard.getByRole('button', { name: 'Добавить' }).click();
+    await page.waitForTimeout(500);
 
-    const closeIcon = modalPortal.locator('button svg').first();
-    await closeIcon.click({ force: true });
+    await expect(page.getByText('Выберите начинку')).not.toBeVisible();
+  });
+
+  test('должен корректно открывать модальное окно ингредиента, валидировать его данные и закрывать', async ({ page }) => {
+    const ingredientText = page.locator('p', { hasText: 'Краторная булка N-200i' }).first();
+    const portal = page.locator(MODAL_PORTAL);
+
+    await ingredientText.click();
+    await expect(portal).toContainText('Детали ингредиента');
+    await expect(portal).toContainText('Краторная булка N-200i');
+
+    await page.locator(MODAL_CLOSE_BUTTON).click();
+    await expect(portal).not.toContainText('Детали ингредиента');
+
+    await ingredientText.click();
+    await expect(portal).toContainText('Детали ингредиента');
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await expect(portal).not.toContainText('Детали ингредиента');
+  });
+
+  test('должен проходить полный процесс создания заказа: добавление элементов, проверка номера заказа и очистка конструктора', async ({ page }) => {
+    // 1. Добавляем булку кликом по кнопке "Добавить"
+    const bunCard = page.locator('li', { hasText: 'Краторная булка N-200i' }).first();
+    await bunCard.getByRole('button', { name: 'Добавить' }).click();
+    await expect(page.getByText('Выберите булки').first()).not.toBeVisible();
+
+    // 2. Добавляем начинку кликом по кнопке "Добавить"
+    const mainCard = page.locator('li', { hasText: 'Биокотлета из марсианской Магнолии' }).first();
+    await mainCard.getByRole('button', { name: 'Добавить' }).click();
+    await expect(page.getByText('Выберите начинку')).not.toBeVisible();
+
+    // 3. ТВОЙ ВАРИАНТ: Запускаем ожидание ответа сети и клик ОДНОВРЕМЕННО через Promise.all
+    const [response] = await Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/orders') && resp.status() === 200, { timeout: 10000 }),
+      page.getByRole('button', { name: 'Оформить заказ' }).click(),
+    ]);
+
+    // Получаем реальный номер заказа динамически из сетевого ответа
+    const data = await response.json();
+    const orderId = data.order.number;
+
+    const portal = page.locator(MODAL_PORTAL);
+
+    // 4. ТВОЙ ВАРИАНТ: Проверяем динамический номер заказа внутри портала модалки
+    await expect(portal).toContainText(String(orderId));
+
+    // 5. Закрываем модальное окно созданного заказа через крестик
+    await page.locator(MODAL_CLOSE_BUTTON).click();
+    await expect(portal).not.toContainText(String(orderId));
+
+    // 6. ТВОЙ ВАРИАНТ: Проверяем, что конструктор очистился и снова виден дефолтный текст
+    await expect(page.getByText('Выберите булки').first()).toBeVisible();
   });
 });
