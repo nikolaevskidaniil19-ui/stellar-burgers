@@ -48,9 +48,6 @@ module.exports = {
     ]
   },
   plugins: [
-    new ESLintPlugin({
-      extensions: ['.js', '.jsx', '.ts', '.tsx']
-    }),
     new HtmlWebpackPlugin({
       template: './public/index.html'
     }),
@@ -58,7 +55,7 @@ module.exports = {
   ],
   resolve: {
     extensions: [
-      '*',
+      '.*',
       '.js',
       '.jsx',
       '.ts',
@@ -86,10 +83,12 @@ module.exports = {
     filename: 'bundle.js'
   },
   devServer: {
-    static: path.join(__dirname, './dist'),
+    static: {
+      directory: path.join(__dirname, 'public')
+    },
     compress: true,
     historyApiFallback: true,
     port: 4000,
     open: true
   }
-};
+  }
