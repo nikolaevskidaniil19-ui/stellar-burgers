@@ -1,98 +1,130 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 
-const MODAL_PORTAL = '#modals';
-const MODAL_CLOSE_BUTTON = '#modals button';
+const har = JSON.parse(fs.readFileSync('tests/hars/api.har', 'utf-8'));
+const entries = har.log.entries;
 
-test.describe('Тестирование страницы конструктора Stellar Burgers', () => {
-  
-  test.beforeEach(async ({ context, page }) => {
-    // СТРОГО ПО ЧЕК-ЛИСТУ: Настроен перехват всех запросов к бэкенду с точной маской URL поддомена norma
-    await page.routeFromHAR('./tests/hars/api.har', {
-      url: 'https://nomoreparties.space**',
-      update: false,
+test.describe('Конструктор бургера — интеграционные тесты', () => {
+  test.beforeEach(async ({ page }) => {
+    // Перехват запросов к API с подстановкой ответов из HAR-файла
+    await page.route('https://nomoreparties.space/**', async (route) => {
+      const url = route.request().url();
+      const method = route.request().method();
+      const entry = entries.find(
+        (e: { request: { url: string; method: string } }) =>
+          e.request.url === url && e.request.method === method
+      );
+      if (entry) {
+        await route.fulfill({
+          status: entry.response.status,
+          contentType: entry.response.content.mimeType,
+          body: entry.response.content.text
+        });
+      } else {
+        await route.fallback();
+      }
     });
 
-    // Добавляем куку jwt авторизации для подстраховки Protected Route
-    await context.addCookies([{
-      name: 'jwt',
-      value: 'fake-jwt-token',
-      domain: 'localhost',
-      path: '/'
-    }]);
-
-    // Перед выполнением тестов подставляются фейковые токены авторизации в localStorage
     await page.addInitScript(() => {
-      window.localStorage.setItem('accessToken', 'Bearer fake-access-token');
       window.localStorage.setItem('refreshToken', 'fake-refresh-token');
+      document.cookie = 'accessToken=Bearer%20fake-access-token; path=/';
     });
 
-    // Открываем главную страницу приложения
     await page.goto('/');
     await page.waitForLoadState('networkidle');
   });
 
-  test('должен успешно добавлять ингредиенты (булки и начинки) из списка в constructor бургера', async ({ page }) => {
-    const bunCard = page.locator('li', { hasText: 'Краторная булка N-200i' }).first();
-    await bunCard.getByRole('button', { name: 'Добавить' }).click();
-    await page.waitForTimeout(300);
+  test('должен добавлять булку и начинку в конструктор', async ({ page }) => {
+    await expect(page.getByText('Краторная булка N-200i')).toBeVisible();
 
-    const mainCard = page.locator('li', { hasText: 'Биокотлета из марсианской Магнолии' }).first();
+    const bunCard = page
+      .locator('li')
+      .filter({ hasText: 'Краторная булка N-200i' })
+      .first();
+    await bunCard.getByRole('button', { name: 'Добавить' }).click();
+
+    await expect(page.getByText('Краторная булка N-200i (верх)')).toBeVisible();
+    await expect(page.getByText('Краторная булка N-200i (низ)')).toBeVisible();
+
+    const mainCard = page
+      .locator('li')
+      .filter({ hasText: 'Биокотлета из марсианской хлореллы' })
+      .first();
     await mainCard.getByRole('button', { name: 'Добавить' }).click();
-    await page.waitForTimeout(500);
 
     await expect(page.getByText('Выберите начинку')).not.toBeVisible();
   });
 
-  test('должен корректно открывать модальное окно ингредиента, валидировать его данные и закрывать', async ({ page }) => {
-    const ingredientText = page.locator('p', { hasText: 'Краторная булка N-200i' }).first();
-    const portal = page.locator(MODAL_PORTAL);
+  test('должен открывать модальное окно ингредиента с верными данными и закрывать по крестику', async ({
+    page
+  }) => {
+    await expect(page.getByText('Краторная булка N-200i')).toBeVisible();
 
-    await ingredientText.click();
-    await expect(portal).toContainText('Детали ингредиента');
-    await expect(portal).toContainText('Краторная булка N-200i');
+    await page
+      .locator('a[href="/ingredients/643d69a5c3f7b9001cfa093c"]')
+      .click();
 
-    await page.locator(MODAL_CLOSE_BUTTON).click();
-    await expect(portal).not.toContainText('Детали ингредиента');
+    const modal = page.locator('#modals');
 
-    await ingredientText.click();
-    await expect(portal).toContainText('Детали ингредиента');
+    await expect(modal).toContainText('Краторная булка N-200i');
+    await expect(modal).toContainText('Калории, ккал');
+    await expect(modal).toContainText('420');
+    await expect(modal).toContainText('Белки, г');
+    await expect(modal).toContainText('80');
 
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-    await expect(portal).not.toContainText('Детали ингредиента');
+    await modal.locator('button').first().click();
+    await expect(modal).not.toContainText('Краторная булка N-200i');
   });
 
-  test('должен проходить полный процесс создания заказа: добавление элементов, проверка номера заказа и очистка конструктора', async ({ page }) => {
-    // 1. Добавляем булку кликом по кнопке "Добавить"
-    const bunCard = page.locator('li', { hasText: 'Краторная булка N-200i' }).first();
+  test('должен закрывать модальное окно ингредиента по клику на оверлей', async ({
+    page
+  }) => {
+    await expect(page.getByText('Краторная булка N-200i')).toBeVisible();
+
+    await page
+      .locator('a[href="/ingredients/643d69a5c3f7b9001cfa093c"]')
+      .click();
+
+    const modal = page.locator('#modals');
+    await expect(modal).toContainText('Краторная булка N-200i');
+
+    await page.mouse.click(5, 5);
+
+    await expect(modal).not.toContainText('Краторная булка N-200i');
+  });
+
+  test('должен создать заказ, показать номер и очистить конструктор', async ({
+    page
+  }) => {
+    await expect(page.getByText('Краторная булка N-200i')).toBeVisible();
+
+    const bunCard = page
+      .locator('li')
+      .filter({ hasText: 'Краторная булка N-200i' })
+      .first();
     await bunCard.getByRole('button', { name: 'Добавить' }).click();
-    await expect(page.getByText('Выберите булки').first()).not.toBeVisible();
 
-    // 2. Добавляем начинку кликом по кнопке "Добавить"
-    const mainCard = page.locator('li', { hasText: 'Биокотлета из марсианской Магнолии' }).first();
+    const mainCard = page
+      .locator('li')
+      .filter({ hasText: 'Биокотлета из марсианской хлореллы' })
+      .first();
     await mainCard.getByRole('button', { name: 'Добавить' }).click();
-    await expect(page.getByText('Выберите начинку')).not.toBeVisible();
 
-    // 3. ТВОЙ ВАРИАНТ: Запускаем ожидание ответа сети и клик ОДНОВРЕМЕННО через Promise.all
-    const [response] = await Promise.all([
-      page.waitForResponse(resp => resp.url().includes('/orders') && resp.status() === 200, { timeout: 10000 }),
-      page.getByRole('button', { name: 'Оформить заказ' }).click(),
-    ]);
+    const sauceCard = page
+      .locator('li')
+      .filter({ hasText: 'Соус Фирменный' })
+      .first();
+    await sauceCard.getByRole('button', { name: 'Добавить' }).click();
 
-    // Получаем реальный номер заказа динамически из сетевого ответа
-    const data = await response.json();
-    const orderId = data.order.number;
+    await page.getByRole('button', { name: 'Оформить заказ' }).click();
 
-    const portal = page.locator(MODAL_PORTAL);
+     const modal = page.locator('#modals');
+    await expect(modal).toContainText('12345');
 
-    // 4. ТВОЙ ВАРИАНТ: Проверяем динамический номер заказа внутри портала модалки
-    await expect(portal).toContainText(String(orderId));
+    await modal.locator('button').first().click();
+    await expect(modal).not.toContainText('12345');
 
-    // 5. Закрываем модальное окно созданного заказа через крестик
-    await page.locator(MODAL_CLOSE_BUTTON).click();
-    await expect(portal).not.toContainText(String(orderId));
-
-    // 6. ТВОЙ ВАРИАНТ: Проверяем, что конструктор очистился и снова виден дефолтный текст
     await expect(page.getByText('Выберите булки').first()).toBeVisible();
+    await expect(page.getByText('Выберите начинку')).toBeVisible();
   });
 });
